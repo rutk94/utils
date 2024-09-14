@@ -1,8 +1,7 @@
-import os
+from distutils.core import setup
+
 import pytest
-import math
-import random
-from pathlib import Path
+from typing import Any
 
 from validators.validators import (
     OneOf,
@@ -38,25 +37,31 @@ from validators.validators import (
 #     path=Path('__init__.py')
 # )
 
-class TestValidator:
+class TestOneOf:
+    @pytest.mark.parametrize('value', [4, 'value4'])
+    def test_oneof_raises_error_with_value_out_of_list(self, value: Any) -> None:
+        validator = OneOf(1, 2, 3, 'value1', 'value2', 'value3')
+        with pytest.raises(Exception):
+            validator.validate(value)
 
-    @pytest.fixture()
-    def setup_5_random_int(self) -> list[int]:
-        random.seed(1)
-        return [random.randint(-100, 100) for _ in range(5)]
 
-    @pytest.fixture()
-    def setup_oneof_int(self, setup_5_random_int) -> OneOf:
-        return OneOf(*setup_5_random_int)
+class TestNumberValidator:
+    @pytest.mark.parametrize('value', ['string', -200, 200])
+    def test_numbervalidator_raises_error(self, value: Any) -> None:
+        validator = NumberValidator(minvalue=-100, maxvalue=100)
+        with pytest.raises(Exception):
+            validator.validate(value)
 
-    def test_oneof_raises_error(self, setup_oneof_int, setup_5_random_int) -> None:
-        random.seed(None)
-        value = random.randint(-100, 100)
-        while value in setup_5_random_int:
-            value = random.randint(-100, 100)
 
-        with pytest.raises(ValueError):
-            setup_oneof_int.validate(value)
+class TestStringValidator:
+    @pytest.mark.parametrize('value', [123, 'abcdefghi', 'a', 'ABCDEF'])
+    def test_stringvalidator_raises_error(self, value: Any) -> None:
+        validator = StringValidator(minsize=2, maxsize=6, predicate=str.islower)
+        with pytest.raises(Exception):
+            validator.validate(value)
+
+class TestPathValidator:
+    pass
 
 
 
