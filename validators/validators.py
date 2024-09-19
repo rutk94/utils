@@ -1,10 +1,12 @@
 import os
 from pathlib import Path
-from typing import Any, Optional, Callable, Iterable
+from typing import Any, Optional, Callable
 from abc import ABC, abstractmethod
 
 
 class Validator(ABC):
+    """Abstract class for validators with descriptor functionality"""
+
     def __set_name__(self, owner: Any, name: str) -> None:
         self.private_name = '_' + name
 
@@ -21,15 +23,51 @@ class Validator(ABC):
 
 
 class OneOf(Validator):
+    """
+    Descriptor representing the list of acceptable values.
+
+    Args:
+        *options (Any): acceptable values
+
+    Methods:
+        validate(value: Any) -> None:
+            Validates if /value/ fits in acceptable values /*options/.
+            If not, raises ValueError.
+    """
+
     def __init__(self, *options: Any) -> None:
         self.options: set[Any] = set(options)
 
     def validate(self, value: Any) -> None:
+        """
+        Validates whether /value/ fits in acceptable values /*options/.
+        If not, raises ValueError.
+
+        Args:
+            value (Any): value to validate
+
+        Returns:
+            True -> None
+            False -> raises ValueError
+        """
         if value not in self.options:
             raise ValueError(f'Expected {value!r} to be one of {self.options!r}')
 
 
 class NumberValidator(Validator):
+    """
+    Descriptor representing the acceptable range of numbers for a value.
+
+    Args:
+        minvalue (Optional[int | float]): minimal value in range
+        maxvalue (Optional[int | float]): maximal value in range
+
+    Methods:
+        validate(value: Any) -> None:
+            Validates whether /value/ is integer or float
+            Validates whether /value/ fits in acceptable range of numbers
+    """
+
     def __init__(
         self,
         minvalue: Optional[int | float] = None,
@@ -39,6 +77,18 @@ class NumberValidator(Validator):
         self.maxvalue: Optional[int | float] = maxvalue
 
     def validate(self, value: Any) -> None:
+        """
+        Validates whether /value/ is integer or float type
+        Validates whether /value/ fits in acceptable range of numbers
+
+        Args:
+            value (Any): value to validate
+
+        Returns:
+            if True -> None
+            if /value/ isn't integer of float -> raises TypeError
+            if /value/ doesn't fit in range -> raises ValueError
+        """
         if not isinstance(value, (int, float)):
             raise TypeError(f'Expected {value!r} to be an int or float')
 
@@ -50,6 +100,26 @@ class NumberValidator(Validator):
 
 
 class StringValidator(Validator):
+    """
+    Descriptor representing parameters of acceptable string value
+
+    Args:
+        minsize (Optional[int]): minimal length of string value
+        maxsize (Optional[int]): maximal length of string value
+        predicate (Optional[Callable]):
+            function which returns True/False being executed with string value
+            e.g.
+                str.isupper
+            or
+                lambda x: 'pattern' in x
+
+    Methods:
+        validate(value: Any) -> None:
+            Validates whether /value/ is string type.
+            Validates whether /value/ fits in length range
+            Validates whether /value/ meets the /predicate/ condition
+    """
+
     def __init__(
         self,
         minsize: Optional[int] = None,
@@ -58,9 +128,23 @@ class StringValidator(Validator):
     ) -> None:
         self.minsize: Optional[int] = minsize
         self.maxsize: Optional[int] = maxsize
-        self.predicate: Optional[Callable[[Any], bool]] = predicate
+        self.predicate: Optional[Callable] = predicate
 
     def validate(self, value: Any) -> None:
+        """
+        Validates whether /value/ is string type.
+        Validates whether /value/ fits in length range
+        Validates whether /value/ meets the /predicate/ condition
+
+        Args:
+            value (Any): value to validate
+
+        Returns:
+            if True -> None
+            if /value/ isn't string -> raises TypeError
+            if /value/ doesn't fit in length range
+                or doesn't meet the /predicate condition -> raises ValueError
+        """
         if not isinstance(value, str):
             raise TypeError(f'Expected {value!r} to be a str')
 
@@ -79,15 +163,51 @@ class StringValidator(Validator):
 
 
 class PathValidator(Validator):
+    """
+    Descriptor representing parameters of acceptable path
+
+    Args:
+        *suffixes (Optional[str]): set of strings representing acceptable file suffixes
+        predicate (Optional[Callable]):
+            function which returns True/False being executed with string value
+            e.g.
+                str.isupper
+            or
+                lambda x: 'pattern' in x
+
+    Methods:
+        validate(value: Any) -> None:
+            Validates whether /value/ is string or pathlib.Path type.
+            Validates whether /value/ path exists.
+            Validates whether /value/ meets /predicate/ condition
+            Validates whether /value/ fits in acceplable suffixes set
+    """
+
     def __init__(
         self,
-        suffix: Optional[str | Iterable[str]] = None,
-        predicate: Optional[Callable[[Any], bool]] = None,
+        *suffixes: Optional[str],
+        predicate: Optional[Callable] = None,
     ) -> None:
-        self.suffix: Optional[str | Iterable[str]] = suffix
-        self.predicate: Optional[Callable[[Any], bool]] = predicate
+        self.predicate: Optional[Callable] = predicate
+        self.suffixes: set[Optional[str]] = set(suffixes)
 
     def validate(self, value: Any) -> None:
+        """
+        Validates whether /value/ is string or pathlib.Path type.
+        Validates whether /value/ path exists.
+        Validates whether /value/ meets /predicate/ condition
+        Validates whether /value/ fits in acceplable suffixes list
+
+        Args:
+            value (Any): value to validate
+
+        Returns:
+            if True -> None
+            if /value/ isn't string or pathlib.Path type -> raises TypeError
+            if /value/ path doesn't exist -> raises FileExistsError
+            if /value/ doesn't meet /predicate/ condition
+                or doesn't fit in acceplable suffixex list -> raises ValueError
+        """
         if not isinstance(value, (str, Path)):
             raise TypeError(f'Expected {value!r} to be a str or pathlib.Path type')
 
@@ -100,9 +220,6 @@ class PathValidator(Validator):
         if self.predicate is not None and not self.predicate(value):
             raise ValueError(f'Expected {self.predicate} to be true for {value!r}')
 
-        if self.suffix is not None:
-            if isinstance(self.suffix, str):
-                self.suffix = [self.suffix]
-
-            if os.path.splitext(value)[1] not in self.suffix:
-                raise Exception(f'Expected {value!r} to be {self.suffix} file')
+        if self.suffixes is not None:
+            if os.path.splitext(value)[1] not in self.suffixes:
+                raise ValueError(f'Expected {value!r} to be {self.suffixes} file')
